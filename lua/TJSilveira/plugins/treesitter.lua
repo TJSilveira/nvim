@@ -1,26 +1,29 @@
 return {
 	{
 		"nvim-treesitter/nvim-treesitter",
+		branch = "master",
 		event = { "BufReadPre", "BufNewFile" },
 		build = ":TSUpdate",
 
 		config = function()
 			local treesitter = require("nvim-treesitter.configs")
-			treesitter.setup {
+			treesitter.setup({
 				-- A list of parser names, or "all" (the listed parsers MUST always be installed)
-				ensure_installed = { "c",
-									"json",
-									"go",
-									"rust",
-									"sql",
-									"bash",
-									"csv",
-									"lua",
-									"vim",
-									"vimdoc",
-									"query",
-									"markdown",
-									"markdown_inline" },
+				ensure_installed = {
+					"c",
+					"json",
+					"go",
+					"rust",
+					"sql",
+					"bash",
+					"csv",
+					"lua",
+					"vim",
+					"vimdoc",
+					"query",
+					"markdown",
+					"markdown_inline",
+				},
 
 				-- Automatically install missing parsers when entering buffer
 				-- Recommendation: set to false if you don't have `tree-sitter` CLI installed locally
@@ -37,7 +40,8 @@ return {
 					end,
 					additional_vim_regex_highlighting = true,
 				},
-			}
+			})
 		end,
-	}
+	},
 }
+
