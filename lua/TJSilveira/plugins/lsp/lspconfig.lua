@@ -8,7 +8,6 @@ return {
 	},
 	config = function()
 		local lspconfig = require("lspconfig")
-		local mason_lspconfig = require("mason-lspconfig")
 		local cmp_nvim_lsp = require("cmp_nvim_lsp")
 
 		-- ─── Keymaps (only active when an LSP attaches to a buffer) ───────────────
@@ -138,14 +137,10 @@ return {
 			ast_grep = {},
 		}
 
-		-- ─── Setup handler (wires mason-lspconfig → nvim-lspconfig) ──────────────
-		mason_lspconfig.setup_handlers({
-			-- default handler — called for every installed server not listed below
-			function(server_name)
-				local opts = server_settings[server_name] or {}
-				opts.capabilities = opts.capabilities or capabilities
-				lspconfig[server_name].setup(opts)
-			end,
-		})
+		-- ─── Setup each server (compatible with mason-lspconfig v2+) ─────────────
+		for server_name, opts in pairs(server_settings) do
+			opts.capabilities = opts.capabilities or capabilities
+			lspconfig[server_name].setup(opts)
+		end
 	end,
 }
