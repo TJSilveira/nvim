@@ -18,7 +18,25 @@ return {
 					vim.keymap.set("n", keys, func, { buffer = ev.buf, desc = "LSP: " .. desc })
 				end
 
-				map("gd", vim.lsp.buf.definition, "Go to Definition")
+				map("gd", function()
+					vim.lsp.buf.definition({
+						on_list = function(opts)
+							local seen = {}
+							opts.items = vim.tbl_filter(function(item)
+								local key = item.filename .. ":" .. item.lnum
+								if seen[key] then return false end
+								seen[key] = true
+								return true
+							end, opts.items)
+							vim.fn.setqflist({}, " ", opts)
+							if #opts.items == 1 then
+								vim.cmd("cfirst")
+							else
+								vim.cmd("copen")
+							end
+						end,
+					})
+				end, "Go to Definition")
 				map("gD", vim.lsp.buf.declaration, "Go to Declaration")
 				map("gr", vim.lsp.buf.references, "Show References")
 				map("gI", vim.lsp.buf.implementation, "Go to Implementation")
@@ -31,6 +49,13 @@ return {
 				map("]d", vim.diagnostic.goto_next, "Next Diagnostic")
 				map("<leader>d", vim.diagnostic.open_float, "Show Line Diagnostics")
 				map("<leader>D", vim.diagnostic.setloclist, "Diagnostics List")
+
+				if vim.lsp.inlay_hint then
+					vim.lsp.inlay_hint.enable(true, { bufnr = ev.buf })
+					map("<leader>ih", function()
+						vim.lsp.inlay_hint.enable(not vim.lsp.inlay_hint.is_enabled({ bufnr = ev.buf }), { bufnr = ev.buf })
+					end, "Toggle Inlay Hints")
+				end
 			end,
 		})
 
@@ -58,6 +83,21 @@ return {
 			},
 
 			ts_ls = {
+				-- IMPORTANT (monorepo): Neovim's built-in lsp/ts_ls.lua roots the project
+				-- at the nearest lockfile (pnpm-lock.yaml). In this pnpm monorepo that
+				-- lives at ~/Monorepo, so tsserver would try to load the WHOLE repo and
+				-- never resolve individual files. Override root_dir to the nearest
+				-- tsconfig/jsconfig/package.json so each workspace package is its own
+				-- scoped TS project.
+				root_dir = function(bufnr, on_dir)
+					local fname = vim.api.nvim_buf_get_name(bufnr)
+					if fname == "" then return end
+					local found = vim.fs.find(
+						{ "tsconfig.json", "jsconfig.json", "package.json" },
+						{ upward = true, path = vim.fs.dirname(fname), stop = vim.loop.os_homedir() }
+					)[1]
+					if found then on_dir(vim.fs.dirname(found)) end
+				end,
 				settings = {
 					typescript = { inlayHints = { includeInlayParameterNameHints = "all" } },
 					javascript = { inlayHints = { includeInlayParameterNameHints = "all" } },
@@ -137,10 +177,18 @@ return {
 			ast_grep = {},
 		}
 
-		-- ─── Setup each server (compatible with mason-lspconfig v2+) ─────────────
+		-- ─── Register each server via the native Neovim 0.11 API ─────────────────
+		-- On Neovim 0.11+, `lspconfig[server].setup()` is the deprecated path and,
+		-- crucially, does NOT override the built-in `lsp/<server>.lua` config that
+		-- mason-lspconfig's `automatic_enable` activates through `vim.lsp.enable()`.
+		-- That is why the custom ts_ls root_dir above was previously ignored and
+		-- tsserver rooted itself at the whole monorepo. `vim.lsp.config()`
+		-- deep-merges onto the built-in config, so our overrides (root_dir,
+		-- settings, capabilities) actually take effect. mason-lspconfig still calls
+		-- `vim.lsp.enable()` for each installed server.
 		for server_name, opts in pairs(server_settings) do
 			opts.capabilities = opts.capabilities or capabilities
-			lspconfig[server_name].setup(opts)
+			vim.lsp.config(server_name, opts)
 		end
 	end,
 }
