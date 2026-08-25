@@ -43,17 +43,25 @@ local function get_clients(bufnr)
 	return vim.lsp.get_active_clients({ bufnr = bufnr })
 end
 
+-- make_position_params() without an explicit encoding is deprecated in 0.11 and
+-- removed in 0.12, so take it from the client that will answer the request.
+local function position_params(bufnr)
+	local clients = get_clients(bufnr)
+	local encoding = clients[1] and clients[1].offset_encoding or "utf-16"
+	return vim.lsp.util.make_position_params(0, encoding)
+end
+
 -- Fire a real request at the cursor synchronously and describe the result.
 -- Returns: ok(boolean), detail(string)
 local function probe(bufnr, method)
 	local params
 	if method == "textDocument/references" then
-		params = vim.lsp.util.make_position_params()
+		params = position_params(bufnr)
 		params.context = { includeDeclaration = true }
 	elseif method == "textDocument/documentSymbol" then
 		params = { textDocument = vim.lsp.util.make_text_document_params() }
 	else
-		params = vim.lsp.util.make_position_params()
+		params = position_params(bufnr)
 	end
 
 	-- 5s: a cold tsserver in a large monorepo package needs time to finish
@@ -131,9 +139,29 @@ local function build_report(bufnr)
 
 	-- Per-client summary + root_dir (the usual monorepo culprit).
 	add("Attached clients (" .. #clients .. "):")
+	local warnings = {}
 	for _, c in ipairs(clients) do
 		local root = c.config.root_dir or (c.root_dir) or "(no root_dir)"
 		add(string.format("  • %-16s root: %s", c.name, vim.fn.fnamemodify(root, ":~")))
+
+		-- A TypeScript server rooted at a directory with no tsconfig runs an
+		-- "inferred project": hover and same-file jumps still work, but cross-file
+		-- navigation and path aliases silently return nothing. This is the single
+		-- most common cause of "gd works here but not there" in a monorepo.
+		if (c.name == "ts_ls" or c.name == "vtsls") and type(root) == "string" then
+			local has_tsconfig = vim.uv.fs_stat(root .. "/tsconfig.json") or vim.uv.fs_stat(root .. "/jsconfig.json")
+			if not has_tsconfig then
+				table.insert(warnings, "  ! " .. c.name .. " is rooted at a directory with NO tsconfig.json:")
+				table.insert(warnings, "      " .. vim.fn.fnamemodify(root, ":~"))
+				table.insert(warnings, "    tsserver falls back to an inferred project — cross-file")
+				table.insert(warnings, "    definitions and path aliases will not resolve. A nested")
+				table.insert(warnings, "    package.json above this file is usually what hijacked the root.")
+			end
+		end
+	end
+	if #warnings > 0 then
+		add("")
+		vim.list_extend(lines, warnings)
 	end
 	add("")
 
@@ -175,6 +203,19 @@ local function append_probe(bufnr, lines)
 	local res = {}
 	for _, p in ipairs(probes) do
 		local ok, detail = probe(bufnr, p[1])
+		-- A cold tsserver answers hover from the open file long before the project
+		-- graph is ready, so a single empty definition result proves nothing. Retry
+		-- these two for ~15s before calling them broken.
+		if not ok and (p[1] == "textDocument/definition" or p[1] == "textDocument/references") then
+			for _ = 1, 5 do
+				vim.wait(2000, function() return false end, 100)
+				ok, detail = probe(bufnr, p[1])
+				if ok then
+					detail = detail .. " (after retry — server was still indexing)"
+					break
+				end
+			end
+		end
 		res[p[1]] = ok
 		add(string.format("  %s %-18s %s", ok and "✓" or "✗", p[2], detail))
 	end
