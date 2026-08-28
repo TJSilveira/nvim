@@ -2,10 +2,10 @@ return {
 	"f-person/git-blame.nvim",
 	event = "BufReadPre",
 	keys = {
-		{ "<leader>Gb", "<cmd>GitBlameToggle<cr>", desc = "Toggle Git Blame" },
-		{ "<leader>Gbo", "<cmd>GitBlameOpenCommitURL<cr>", desc = "Open Commit URL" },
-		{ "<leader>Gbc", "<cmd>GitBlameCopySHA<cr>", desc = "Copy Commit SHA" },
-		{ "<leader>Gbs", "<cmd>GitBlameCopyCommitURL<cr>", desc = "Copy Commit URL" },
+		{ "<leader>gb", "<cmd>GitBlameToggle<cr>", desc = "Toggle Git Blame" },
+		{ "<leader>go", "<cmd>GitBlameOpenCommitURL<cr>", desc = "Open Commit URL" },
+		{ "<leader>gs", "<cmd>GitBlameCopySHA<cr>", desc = "Copy Commit SHA" },
+		{ "<leader>gu", "<cmd>GitBlameCopyCommitURL<cr>", desc = "Copy Commit URL" },
 	},
 	opts = {
 		enabled = true,
