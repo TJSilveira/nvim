@@ -22,3 +22,5 @@ opt.smartcase = true -- if search is mixed case, assume case-sensitivity
 
 -- clipboard
 opt.clipboard:append("unnamedplus") -- use system clipboard as default register
+-- sign column
+opt.signcolumn = "yes" -- always reserve the gutter so git signs do not shift text
