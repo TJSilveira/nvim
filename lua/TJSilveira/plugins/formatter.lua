@@ -15,9 +15,24 @@ return {
 			cwd = util.root_file({ ".oxfmtrc.json", ".oxfmtrc.jsonc" }),
 		}
 
-		-- from_node_modules only resolves oxfmt where the project depends on it, so
-		-- prettier keeps working in repos that have not moved to oxc.
+		-- prismals bundles its own Prisma version, which formats differently from the
+		-- one the repo pins; running the project's CLI keeps saves and CI in sync.
+		conform.formatters.prisma = {
+			command = util.from_node_modules("prisma"),
+			args = { "format", "--schema", "$FILENAME" },
+			stdin = false,
+		}
+
+		-- from_node_modules only resolves these where the project depends on them, so
+		-- prettier and prismals keep working in repos that have not adopted them.
 		local web = { "oxfmt", "prettier", stop_after_first = true }
+
+		-- The Prisma CLI is a Node process formatting an 18k-line schema; it needs
+		-- several times the budget that suffices for the native formatters.
+		local function format_opts(bufnr)
+			local timeout_ms = vim.bo[bufnr or 0].filetype == "prisma" and 3000 or 500
+			return { timeout_ms = timeout_ms, lsp_format = "fallback" }
+		end
 
 		conform.setup({
 			formatters_by_ft = {
@@ -33,23 +48,20 @@ return {
 				yaml = web,
 				markdown = web,
 				graphql = web,
+				prisma = { "prisma" },
 				lua = { "stylua" },
 				go = { "gofmt" },
 				rust = { "rustfmt" },
 				python = { "black" },
 				sh = { "shfmt" },
 			},
-			format_on_save = {
-				timeout_ms = 500,
-				lsp_format = "fallback",
-			},
+			format_on_save = function(bufnr)
+				return format_opts(bufnr)
+			end,
 		})
 
 		vim.keymap.set({ "n", "v" }, "<leader>mp", function()
-			conform.format({
-				timeout_ms = 500,
-				lsp_format = "fallback",
-			})
+			conform.format(format_opts())
 		end, { desc = "Format file or range (in visual mode)" })
 	end,
 }
