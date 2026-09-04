@@ -11,11 +11,25 @@
 -- which pulls focus out of the lazygit terminal and drops it back to normal
 -- mode. Without this, returning to the lazygit tab sends every keypress to Vim
 -- instead of to lazygit.
+--
+-- The `g` mappings let tabs be driven from inside the terminal; lazygit's own
+-- `g` bindings are moved out of the way in its config.yml so the sequences
+-- reach Vim untouched.
 vim.api.nvim_create_autocmd({ "BufEnter", "WinEnter" }, {
 	pattern = "term://*",
 	callback = function(args)
-		if vim.api.nvim_buf_get_name(args.buf):find("lazygit", 1, true) then
-			vim.cmd.startinsert()
+		if not vim.api.nvim_buf_get_name(args.buf):find("lazygit", 1, true) then
+			return
 		end
+
+		local map = function(lhs, rhs)
+			vim.keymap.set("t", lhs, rhs, { buffer = args.buf })
+		end
+		map("gt", "<cmd>tabnext<cr>")
+		map("gT", "<cmd>tabprevious<cr>")
+		map("gn", "<cmd>tabnew<cr>")
+		map("gx", "<cmd>tabclose<cr>")
+
+		vim.cmd.startinsert()
 	end,
 })
