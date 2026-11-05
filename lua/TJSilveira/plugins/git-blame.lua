@@ -11,7 +11,6 @@ return {
 		enabled = true,
 		message_template = " <summary> • <date> • <author> • <<sha>>",
 		date_format = "%Y-%m-%d",
-		virtual_text_column = 80, -- align blame text at column 80
 		highlight_group = "Comment",
 	},
 }
